@@ -1,4 +1,5 @@
 ; first commit
+; second commit
 section	.rodata			; we define (global) read-only variables in .rodata section
 
 section .bss			; we define (global) uninitialized variables in .bss section
