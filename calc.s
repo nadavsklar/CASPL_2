@@ -2,21 +2,17 @@
 ; second commit
 section	.rodata			; we define (global) read-only variables in .rodata section
 	elementLength: DD 5
+	format_string: db "%s", 10, 0
+    format_int: db "%d", 10, 0
+    format_char: db "%c", 10, 0
+    format_hexa: db "%x", 10, 0
 
 section .data           ; we define (global) initialized variables in .data section
 	bufferLength: DD 80
 	stackLength: EQU 5 					;;stack size
 	stack TIMES stackLength DD 0 		;;stack address
 	stackPointer: DD 0 					;;stack pointer
-	quit: db 'q'
-	plus: db '+'
-	popAndPrint: db 'p'
-	duplicate: db 'd'
-	pPower: db '^'
-	nPower: db 'v'
-	numOfBits: db 'n'
-	numOfActions: DD 0
-	stdin: DD 0
+	numOfActions: DD 88
 
 
 
@@ -32,22 +28,18 @@ align 16
 	extern calloc
 	extern free
 	extern fgets
+	extern stdin
+	extern stdout
+	extern stderr
 
 main:
-	pop    dword ecx    ; ecx = argc
-    mov    esi,esp      ; esi = argv
+	mov eax, 7
+	push eax
+	push format_int
+	call printf
+    call myCalc        ; int main( int argc, char *argv[], char *envp[] )
 
-    mov     eax,ecx     ; put the number of arguments into eax
-    shl     eax,2       ; compute the size of argv in bytes
-    add     eax,esi     ; add the size to the address of argv 
-    add     eax,4       ; skip NULL at the end of argv
-    push    dword eax   ; char *envp[]
-    push    dword esi   ; char* argv[]
-    push    dword ecx   ; int argc
-
-    call    myCalc        ; int main( int argc, char *argv[], char *envp[] )
-
-    mov     ebx,eax
+    mov     ebx,0
     mov     eax,1
     int     0x80
     nop
@@ -110,7 +102,7 @@ myCalc:
 			jmp doWhile
 
 		callBits:
-			call call nBits
+			call nBits
 			jmp doWhile
 
 		callExit:
@@ -119,3 +111,18 @@ myCalc:
     mov esp, ebp	
     pop ebp
     ret
+
+doNumber:
+	ret
+plus:
+	ret
+popAndPrint:
+	ret
+duplicate:
+	ret
+pPower:
+	ret
+nPower:
+	ret
+nBits:
+	ret
