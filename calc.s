@@ -7,6 +7,7 @@ section	.rodata			; we define (global) read-only variables in .rodata section
     format_char: db "%c", 10, 0
     format_hexa: db "%x", 10, 0
 	const16: DD 16
+	const256: DD 256
 
 section .data           ; we define (global) initialized variables in .data section
 	bufferLength: DD 80
@@ -16,12 +17,14 @@ section .data           ; we define (global) initialized variables in .data sect
 	numOfActions: DD 88
 	numValue: DD 0
 	powerCounterBy16: DD 0
-	counter: DD 0
-
-
+	struc link
+		.data resb 1
+		.next resb 4
+	end struc
 
 section .bss			; we define (global) uninitialized variables in .bss section
 	buffer: resb 80 					;; store input buffer
+	head: resb 1         			;; This is a pointer for a linked list
 
 section .text
 align 16
@@ -62,6 +65,7 @@ myCalc:
 			push bufferLength
 			push buffer
 			call fgets
+			add esp, 12
 
 			cmp byte [buffer], '+'
 			je callPlus
@@ -155,25 +159,28 @@ doNumber:				; function that gets the value of the number the user entered
 				dec edi
 				jmp startLeftLoop
 	endGetValue:
-		mov eax, dword [numValue]
-		push eax
-		push format_hexa
-		call printf
+		call pushNumber
 	ret
 
 
 plus:
 	ret
+
 popAndPrint:
 	ret
+
 duplicate:
 	ret
+
 pPower:
 	ret
+
 nPower:
 	ret
+
 nBits:
 	ret
+
 powerBy16:						; powerCounterBy16 = power
 	mov eax, 1					; sum = 1
 	mov ebx, 0					; i = 0
@@ -185,3 +192,24 @@ powerBy16:						; powerCounterBy16 = power
 		jmp startPowerBy16Loop
 	endPowerBy16Loop:
 		ret
+
+pushNumber:
+	mov eax, dword [numValue] 		; eax = the numeric value
+	pushLoop:
+		cmp eax, 0 
+		je endPushLoop
+		div dword [const256]		; eax = eax / 256, edx = eax % 256
+		mov ecx, eax				; ecx = eax
+		push dword [elementLength]
+		call malloc
+		mov dword [head], eax
+		add esp, 4
+		mov byte [head], edx
+		stac
+
+
+
+
+
+
+	ret
