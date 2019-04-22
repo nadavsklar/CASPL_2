@@ -25,6 +25,7 @@ section .data           ; we define (global) initialized variables in .data sect
 section .bss			; we define (global) uninitialized variables in .bss section
 	buffer: resb 80 					;; store input buffer
 	head: resb 1         			;; This is a pointer for a linked list
+	tmp: resb 1 					;; This is a tmp pointer to the current link
 
 section .text
 align 16
@@ -194,22 +195,35 @@ powerBy16:						; powerCounterBy16 = power
 		ret
 
 pushNumber:
-	mov eax, dword [numValue] 		; eax = the numeric value
-	pushLoop:
+	mov eax, dword [numValue] 					; eax = the numeric value
+	pushInit:
 		cmp eax, 0 
 		je endPushLoop
-		div dword [const256]		; eax = eax / 256, edx = eax % 256
-		mov ecx, eax				; ecx = eax
+		div dword [const256]					; eax = eax / 256, edx = eax % 256
+		mov ecx, eax							; ecx = eax
 		push dword [elementLength]
 		call malloc
-		mov dword [head], eax
+		mov dword [head], eax					; head = malloc(elementLength)
 		add esp, 4
-		mov byte [head], edx
-		stac
-
-
-
-
-
-
-	ret
+		mov byte [head + data], edx 			; head.data = edx
+		mov ebx, dword [head]
+		mov dword [stack+stackPointer], ebx 	; stack[stackPointer] = head
+		mov eax, ecx
+	pushLoop:
+		cmp eax, 0
+		je endPushLoop
+		div dword [const256]					; eax = eax / 256, edx = eax % 256
+		mov ecx, eax							; ecx = eax
+		push dword [elementLength]
+		call malloc
+		mov dword [tmp], eax					; tmp = malloc(elementLength)
+		add esp, 4
+		mov byte [tmp + data], edx 				; tmp.data = edx
+		mov ebx, dword [tmp]
+		mov dword [head + next], ebx			; head.next = tmp
+		mov dword [head], ebx					; head = tmp
+		mov eax, ecx
+		jmp pushLoop
+	endPushLoop:
+		inc dword [stackPointer]
+		ret
