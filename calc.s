@@ -12,15 +12,16 @@ section	.rodata			; we define (global) read-only variables in .rodata section
 section .data           ; we define (global) initialized variables in .data section
 	bufferLength: DD 80
 	stackLength: EQU 5 					;;stack size
-	stack TIMES stackLength DD 0 		;;stack address
+	stack: dd 0, 0, 0, 0, 0		;;stack address
 	stackPointer: DD 0 					;;stack pointer
 	numOfActions: DD 88
 	numValue: DD 0
 	powerCounterBy16: DD 0
+	powerCounterBy256: DD 0
 	struc link
-		.data resb 1
-		.next resb 4
-	end struc
+		data resb 1
+		next resb 4
+	endstruc
 
 section .bss			; we define (global) uninitialized variables in .bss section
 	buffer: resb 80 					;; store input buffer
@@ -194,6 +195,18 @@ powerBy16:						; powerCounterBy16 = power
 	endPowerBy16Loop:
 		ret
 
+powerBy256:						; powerCounterBy256 = power
+	mov eax, 1					; sum = 1
+	mov ebx, 0					; i = 0
+	startPowerBy256Loop:
+		cmp ebx, dword [powerCounterBy256]
+		je endPowerBy256Loop
+		mul dword [const256]					; sum = sum * 256
+		inc ebx
+		jmp startPowerBy256Loop
+	endPowerBy256Loop:
+		ret
+
 pushNumber:
 	mov eax, dword [numValue] 					; eax = the numeric value
 	pushInit:
@@ -205,25 +218,50 @@ pushNumber:
 		call malloc
 		mov dword [head], eax					; head = malloc(elementLength)
 		add esp, 4
-		mov byte [head + data], edx 			; head.data = edx
+		mov byte [head + data], dl 			; head.data = edx
 		mov ebx, dword [head]
-		mov dword [stack+stackPointer], ebx 	; stack[stackPointer] = head
+		mov dword edx, [stackPointer]			; edx = stackPointer
+		mov dword [stack + edx * 4], ebx 	; stack[stackPointer] = head
 		mov eax, ecx
 	pushLoop:
 		cmp eax, 0
 		je endPushLoop
+		mov ecx, dword [const256]
 		div dword [const256]					; eax = eax / 256, edx = eax % 256
 		mov ecx, eax							; ecx = eax
 		push dword [elementLength]
 		call malloc
 		mov dword [tmp], eax					; tmp = malloc(elementLength)
 		add esp, 4
-		mov byte [tmp + data], edx 				; tmp.data = edx
+		mov byte [tmp + data], dl 				; tmp.data = edx
 		mov ebx, dword [tmp]
 		mov dword [head + next], ebx			; head.next = tmp
 		mov dword [head], ebx					; head = tmp
 		mov eax, ecx
 		jmp pushLoop
 	endPushLoop:
+		mov dword [head + next], 0
 		inc dword [stackPointer]
+		call popNumber
 		ret
+
+popNumber:
+	dec dword [stackPointer]
+	mov dword [numValue], 0						; numValue = 0
+	mov edx, dword [stackPointer]				; edx = stackPointer
+	mov ebx, dword [stack + edx * 4]			; ebx = stack[stackPointer]
+	mov dword [head], ebx						; head = stack[stackPointer]
+	popLoop:
+		mov ecx, dword [head + data]				; eax = head.data
+		add dword [numValue], ecx					; numValue += eax
+		cmp dword [head + next], 0					; if (head.next == null)
+		je endPopNumber								; end
+		mov ebx, dword [head + next]
+		push dword [head]
+		call free
+		add esp, 4
+		mov dword [head], ebx
+		jmp popLoop
+	endPopNumber:
+		mov eax, dword [numValue]
+	ret
