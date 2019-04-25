@@ -16,6 +16,7 @@ section .data           ; we define (global) initialized variables in .data sect
 	stackPointer: DD 0 					;;stack pointer
 	numOfActions: DD 88
 	numValue: DD 0
+	moduluValue: DD 0
 	powerCounterBy16: DD 0
 	powerCounterBy256: DD 0
 	struc link
@@ -27,6 +28,7 @@ section .bss			; we define (global) uninitialized variables in .bss section
 	buffer: resb 80 					;; store input buffer
 	head: resb 1         			;; This is a pointer for a linked list
 	tmp: resb 1 					;; This is a tmp pointer to the current link
+	savehead: resb 1
 
 section .text
 align 16
@@ -213,34 +215,48 @@ pushNumber:
 		cmp eax, 0 
 		je endPushLoop
 		div dword [const256]					; eax = eax / 256, edx = eax % 256
-		mov ecx, eax							; ecx = eax
 		push dword [elementLength]
+		mov dword [numValue], eax
+		mov dword [moduluValue], edx
 		call malloc
 		mov dword [head], eax					; head = malloc(elementLength)
 		add esp, 4
-		mov byte [head + data], dl 			; head.data = edx
-		mov ebx, dword [head]
-		mov dword edx, [stackPointer]			; edx = stackPointer
-		mov dword [stack + edx * 4], ebx 	; stack[stackPointer] = head
-		mov eax, ecx
+		mov edx, dword [stackPointer]			; edx = stackPointer
+		mov [stack + edx], eax					; stack[stackPointer] = eax (head)
+		mov dword eax, [numValue]				; returning eax to numValue after malloc
+		mov dword edx, [moduluValue]			; returning edx to moduluValue after malloc
+		mov dword ebx, [head]					; ebx = head
+		mov byte [ebx], dl 						; head->data = edx
 	pushLoop:
 		cmp eax, 0
 		je endPushLoop
-		mov ecx, dword [const256]
 		div dword [const256]					; eax = eax / 256, edx = eax % 256
-		mov ecx, eax							; ecx = eax
+		cmp edx, 0
+		je endPushLoop
 		push dword [elementLength]
-		call malloc
-		mov dword [tmp], eax					; tmp = malloc(elementLength)
+		mov dword [numValue], eax				; numValue = eax
+		mov dword [moduluValue], edx			; moduluValue = edx
+		call malloc	
+		mov dword ebx, [head]					; saving head
+		push ebx								; saving head
+		mov dword [tmp], eax					; tmp = malloc(elementLength), from some reason head is driven here, so we did push
+		pop ebx
+		mov dword [head], ebx					; resolving head
 		add esp, 4
-		mov byte [tmp + data], dl 				; tmp.data = edx
-		mov ebx, dword [tmp]
-		mov dword [head + next], ebx			; head.next = tmp
-		mov dword [head], ebx					; head = tmp
-		mov eax, ecx
+		mov dword ebx, [head]					; ebx = head
+		mov dword edx, [tmp]					; edx = temp
+		mov dword [ebx + 1], edx				; head->next = tmp
+		mov dword eax, [numValue]				; returning eax to numValue
+		mov dword edx, [moduluValue]			; returning edx to moduluValue
+		mov dword ebx, [tmp] 		
+		mov byte [ebx], dl						; tmp.data = edx
+		mov dword ecx, [tmp]					; head = temp
+		mov dword [head], ecx					; head = temp;
+		cmp edx, 0
+		je endPushLoop
 		jmp pushLoop
 	endPushLoop:
-		mov dword [head + next], 0
+		mov dword [head + 1], 0
 		inc dword [stackPointer]
 		call popNumber
 		ret
