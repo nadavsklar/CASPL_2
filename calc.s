@@ -265,19 +265,36 @@ popNumber:
 	dec dword [stackPointer]
 	mov dword [numValue], 0						; numValue = 0
 	mov edx, dword [stackPointer]				; edx = stackPointer
-	mov ebx, dword [stack + edx * 4]			; ebx = stack[stackPointer]
+	mov ebx, dword [stack + edx]				; ebx = stack[stackPointer]
 	mov dword [head], ebx						; head = stack[stackPointer]
+	mov dword [powerCounterBy256], 0
 	popLoop:
-		mov ecx, dword [head + data]				; eax = head.data
-		add dword [numValue], ecx					; numValue += eax
-		cmp dword [head + next], 0					; if (head.next == null)
+		sas:
+		mov ecx, 0
+		mov ebx, dword [head]						; ebx = head 
+		mov byte cl, [ebx]						; ecx = head->data
+		ssss:
+		call powerBy256								; eax = 256^i
+		mul ecx										; eax = eax * ecx (256^i * head->data)
+		add dword [numValue], eax					; numValue += eax
+		bb:
+		mov dword ebx, [head]
+		cmp dword [ebx + 1], 0						; if (head->next == null)
+		bb1:
 		je endPopNumber								; end
-		mov ebx, dword [head + next]
+		bb2:
+		push dword [head]							; push head
+		mov ecx, dword [ebx + 1]
+		mov dword [head], ecx						; head = head->next				
+		bb3:
+		call free									; free(head)
+		add esp, 4
+		bb4:
+		inc dword [powerCounterBy256]
+		jmp popLoop
+	endPopNumber:
 		push dword [head]
 		call free
 		add esp, 4
-		mov dword [head], ebx
-		jmp popLoop
-	endPopNumber:
 		mov eax, dword [numValue]
 	ret
