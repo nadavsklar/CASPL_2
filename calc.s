@@ -26,9 +26,9 @@ section .data           ; we define (global) initialized variables in .data sect
 
 section .bss			; we define (global) uninitialized variables in .bss section
 	buffer: resb 80 					;; store input buffer
-	head: resb 1         			;; This is a pointer for a linked list
-	tmp: resb 1 					;; This is a tmp pointer to the current link
-	savehead: resb 1
+	head: resb 5         			;; This is a pointer for a linked list
+	tmp: resb 5 					;; This is a tmp pointer to the current link
+	savehead: resb 5
 
 section .text
 align 16
@@ -237,12 +237,8 @@ pushNumber:
 		mov dword [numValue], eax				; numValue = eax
 		mov dword [moduluValue], edx			; moduluValue = edx
 		call malloc	
-		mov dword ebx, [head]					; saving head
-		push ebx								; saving head
-		mov dword [tmp], eax					; tmp = malloc(elementLength), from some reason head is driven here, so we did push
-		pop ebx
-		mov dword [head], ebx					; resolving head
 		add esp, 4
+		mov dword [tmp], eax					; tmp = malloc(elementLength), from some reason head is driven here, so we did push
 		mov dword ebx, [head]					; ebx = head
 		mov dword edx, [tmp]					; edx = temp
 		mov dword [ebx + 1], edx				; head->next = tmp
@@ -258,7 +254,6 @@ pushNumber:
 	endPushLoop:
 		mov dword [head + 1], 0
 		inc dword [stackPointer]
-		call popNumber
 		ret
 
 popNumber:
@@ -269,31 +264,26 @@ popNumber:
 	mov dword [head], ebx						; head = stack[stackPointer]
 	mov dword [powerCounterBy256], 0
 	popLoop:
-		sas:
 		mov ecx, 0
 		mov ebx, dword [head]						; ebx = head 
-		mov byte cl, [ebx]						; ecx = head->data
-		ssss:
+		mov byte cl, [ebx]							; ecx = head->data
 		call powerBy256								; eax = 256^i
 		mul ecx										; eax = eax * ecx (256^i * head->data)
 		add dword [numValue], eax					; numValue += eax
-		bb:
 		mov dword ebx, [head]
 		cmp dword [ebx + 1], 0						; if (head->next == null)
-		bb1:
 		je endPopNumber								; end
-		bb2:
-		push dword [head]							; push head
+		mov dword eax, [head]
+		push eax									; push head
 		mov ecx, dword [ebx + 1]
 		mov dword [head], ecx						; head = head->next				
-		bb3:
 		call free									; free(head)
 		add esp, 4
-		bb4:
-		inc dword [powerCounterBy256]
+		inc dword [powerCounterBy256]				; power++
 		jmp popLoop
 	endPopNumber:
-		push dword [head]
+		mov dword eax, [head]						; free(head)
+		push eax
 		call free
 		add esp, 4
 		mov eax, dword [numValue]
