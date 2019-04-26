@@ -5,7 +5,7 @@ section	.rodata			; we define (global) read-only variables in .rodata section
 	format_string: db "%s", 10, 0
     format_int: db "%d", 10, 0
     format_char: db "%c", 10, 0
-    format_hexa: db "%x", 10, 0
+    format_hexa: db "%x", 0
 	const16: DD 16
 	const256: DD 256
 
@@ -198,6 +198,32 @@ plus:
 	ret
 
 popAndPrint:
+	sub dword [stackPointer], 4								; getting the last address
+	mov dword eax, [stackPointer]							; ebx = stackPointer
+	mov dword ebx, [eax]
+	popLoop:
+		cmp dword ebx, 0										; if *stackPointer == NULL
+		je endPopLoop
+		a:
+		mov eax, 0
+		mov byte al, [ebx]
+		b:
+		push eax
+		push format_hexa
+		call printf
+		add esp, 8
+		c:
+		mov eax, [ebx + 1]
+		d:
+		mov [tmp], eax
+		e:
+		push ebx
+		call free
+		add esp, 4
+		f:
+		mov ebx, [tmp]
+		jmp popLoop
+	endPopLoop:
 	ret
 
 duplicate:
