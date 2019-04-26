@@ -11,24 +11,22 @@ section	.rodata			; we define (global) read-only variables in .rodata section
 
 section .data           ; we define (global) initialized variables in .data section
 	bufferLength: DD 80
-	stackLength: EQU 5 					;;stack size
-	stack: dd 0, 0, 0, 0, 0		;;stack address
-	stackPointer: DD 0 					;;stack pointer
 	numOfActions: DD 88
 	numValue: DD 0
 	moduluValue: DD 0
 	powerCounterBy16: DD 0
 	powerCounterBy256: DD 0
-	struc link
-		data resb 1
-		next resb 4
-	endstruc
+    counterToInsert: DD 0
+    isFirst: DD 1
+	stackPointer: DD stack 					;;stack pointer
+
 
 section .bss			; we define (global) uninitialized variables in .bss section
 	buffer: resb 80 					;; store input buffer
 	head: resb 5         			;; This is a pointer for a linked list
 	tmp: resb 5 					;; This is a tmp pointer to the current link
 	savehead: resb 5
+	stack: resb 5 	;;stack address
 
 section .text
 align 16
@@ -130,24 +128,24 @@ myCalc:
 		pop ebp
 		ret
 
-doNumber:				; function that gets the value of the number the user entered
+doNumber:			                                	; function that gets the value of the number the user entered and push it
 	mov edi, 0
-	startRight: 		; starting moving from str[0] to str[size - 1]
+	startRight: 		                                ; starting moving from str[0] to str[size - 1]
 		cmp byte [buffer + edi], 0
 		je startLeft
 		inc edi
 		jmp startRight
-	startLeft:			; starting moving left from str[0]
+	startLeft:			                                ; starting moving left from str[0]
 		dec edi
 		dec edi
-		mov dword [numValue], 0			; sum = 0
-		mov dword [powerCounterBy16], 0						; power = 0
+		mov dword [numValue], 0			                ; sum = 0
+        mov dword [counterToInsert], 0
 		startLeftLoop:
 			mov ecx, 0
 			cmp edi, -1
 			je endGetValue
 			mov cl, byte [buffer + edi]
-			cmp cl, 58			; figuring if str[i] is letter or digit
+			cmp cl, 58			                        ; figuring if str[i] is letter or digit
 			ja itsALetter 
 			itsADigit:									; its a digit
 				sub cl, '0'
@@ -156,15 +154,44 @@ doNumber:				; function that gets the value of the number the user entered
 				add cl, 10
 				sub cl, 'A'
 			endDigitOrLetter:							; ecx = the digit value, powerCounterBy16 = power
-				call powerBy16							; return as eax 16^power
-				mul ecx									; eax (16^power) = eax * ecx (digit)
-				add dword [numValue], eax
-				inc dword [powerCounterBy16]
-				dec edi
-				jmp startLeftLoop
+                inc dword [counterToInsert]             ; first digit or second from every couple
+                cmp dword [counterToInsert], 2                ; if second
+                je getNode                              ; jump
+                getFirstDigitFrom2:                     ; else
+					add dword [numValue], ecx               ; first digit - so taking it as it
+					jmp endGetDigitFrom2
+                
+                getNode:
+					mov eax, ecx                                ; eax = digit
+					mul dword [const16]                         ; eax = digit * 16
+					add dword [numValue], eax                   ; second digit - so we take it as digit * 16
+
+					cmp dword [isFirst], 1                      ; is first?
+					jne callPushNumber                          ; if not, just push number
+					call pushFirstNode                          ; if first, push first node
+					dec dword [isFirst]                         ; not first anymore
+					jmp endPushNumber                           ; end push current node
+
+
+					callPushNumber:                             ; pushes not first node
+						call pushNumber
+
+					endPushNumber:                              ; end push current node
+						mov dword [numValue], 0                     ; current num value = 0
+						mov dword [counterToInsert], 0				; counterToInsert = 0
+
+                endGetDigitFrom2:                           ; moving forward
+					dec edi
+					jmp startLeftLoop
 	endGetValue:
-		call pushNumber
-	ret
+        cmp dword [numValue], 0                             ; is there are more digits we havent entered?
+        je endDoNumber  
+        call pushNumber                                     ; yes - push them
+        endDoNumber:                                        ; else
+		mov dword [head + 1], 0                             ; end of list = null
+		add dword [stackPointer], 4                            ; stackPointer++
+		mov dword [isFirst], 1
+	    ret
 
 
 plus:
@@ -185,106 +212,35 @@ nPower:
 nBits:
 	ret
 
-powerBy16:						; powerCounterBy16 = power
-	mov eax, 1					; sum = 1
-	mov ebx, 0					; i = 0
-	startPowerBy16Loop:
-		cmp ebx, dword [powerCounterBy16]
-		je endPowerBy16Loop
-		mul dword [const16]					; sum = sum * 16
-		inc ebx
-		jmp startPowerBy16Loop
-	endPowerBy16Loop:
-		ret
-
-powerBy256:						; powerCounterBy256 = power
-	mov eax, 1					; sum = 1
-	mov ebx, 0					; i = 0
-	startPowerBy256Loop:
-		cmp ebx, dword [powerCounterBy256]
-		je endPowerBy256Loop
-		mul dword [const256]					; sum = sum * 256
-		inc ebx
-		jmp startPowerBy256Loop
-	endPowerBy256Loop:
-		ret
-
-pushNumber:
-	mov eax, dword [numValue] 					; eax = the numeric value
-	pushInit:
-		cmp eax, 0 
-		je endPushLoop
-		div dword [const256]					; eax = eax / 256, edx = eax % 256
+pushFirstNode:
+    pushInit:
 		push dword [elementLength]
-		mov dword [numValue], eax
-		mov dword [moduluValue], edx
 		call malloc
 		mov dword [head], eax					; head = malloc(elementLength)
 		add esp, 4
+		
 		mov edx, dword [stackPointer]			; edx = stackPointer
-		mov [stack + edx], eax					; stack[stackPointer] = eax (head)
-		mov dword eax, [numValue]				; returning eax to numValue after malloc
-		mov dword edx, [moduluValue]			; returning edx to moduluValue after malloc
+		mov [edx], eax							; stack[stackPointer] = head;
+		
+		
+		mmm:
 		mov dword ebx, [head]					; ebx = head
+        mov dword edx, [numValue]               ; edx = data
 		mov byte [ebx], dl 						; head->data = edx
+    ret
+
+pushNumber:
 	pushLoop:
-		cmp eax, 0
-		je endPushLoop
-		div dword [const256]					; eax = eax / 256, edx = eax % 256
-		cmp edx, 0
-		je endPushLoop
 		push dword [elementLength]
-		mov dword [numValue], eax				; numValue = eax
-		mov dword [moduluValue], edx			; moduluValue = edx
 		call malloc	
 		add esp, 4
-		mov dword [tmp], eax					; tmp = malloc(elementLength), from some reason head is driven here, so we did push
+		mov dword [tmp], eax					; tmp = malloc(elementLength)
 		mov dword ebx, [head]					; ebx = head
 		mov dword edx, [tmp]					; edx = temp
 		mov dword [ebx + 1], edx				; head->next = tmp
-		mov dword eax, [numValue]				; returning eax to numValue
-		mov dword edx, [moduluValue]			; returning edx to moduluValue
+        mov dword edx, [numValue]               ; edx = data
 		mov dword ebx, [tmp] 		
 		mov byte [ebx], dl						; tmp.data = edx
 		mov dword ecx, [tmp]					; head = temp
-		mov dword [head], ecx					; head = temp;
-		cmp edx, 0
-		je endPushLoop
-		jmp pushLoop
-	endPushLoop:
-		mov dword [head + 1], 0
-		inc dword [stackPointer]
+		mov dword [head], ecx					; head = temp
 		ret
-
-popNumber:
-	dec dword [stackPointer]
-	mov dword [numValue], 0						; numValue = 0
-	mov edx, dword [stackPointer]				; edx = stackPointer
-	mov ebx, dword [stack + edx]				; ebx = stack[stackPointer]
-	mov dword [head], ebx						; head = stack[stackPointer]
-	mov dword [powerCounterBy256], 0
-	popLoop:
-		mov ecx, 0
-		mov ebx, dword [head]						; ebx = head 
-		mov byte cl, [ebx]							; ecx = head->data
-		call powerBy256								; eax = 256^i
-		mul ecx										; eax = eax * ecx (256^i * head->data)
-		add dword [numValue], eax					; numValue += eax
-		mov dword ebx, [head]
-		cmp dword [ebx + 1], 0						; if (head->next == null)
-		je endPopNumber								; end
-		mov dword eax, [head]
-		push eax									; push head
-		mov ecx, dword [ebx + 1]
-		mov dword [head], ecx						; head = head->next				
-		call free									; free(head)
-		add esp, 4
-		inc dword [powerCounterBy256]				; power++
-		jmp popLoop
-	endPopNumber:
-		mov dword eax, [head]						; free(head)
-		push eax
-		call free
-		add esp, 4
-		mov eax, dword [numValue]
-	ret
