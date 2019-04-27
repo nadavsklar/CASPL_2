@@ -15,8 +15,6 @@ section .data           ; we define (global) initialized variables in .data sect
 	bufferLength: DD 80
 	numOfActions: DD 88
 	numValue: DD 0
-	OP1: DD 0
-	OP2: DD 0
 	moduluValue: DD 0
 	powerCounterBy16: DD 0
 	powerCounterBy256: DD 0
@@ -27,6 +25,8 @@ section .data           ; we define (global) initialized variables in .data sect
 
 section .bss			; we define (global) uninitialized variables in .bss section
 	buffer: resb 80 					;; store input buffer
+	OP1: resb 80						;; op1 of the plus action
+	OP2: resb 80						;; op2 of the plus action
 	head: resb 5         			;; This is a pointer for a linked list
 	tmp: resb 5 					;; This is a tmp pointer to the current link
 	savehead: resb 5
@@ -205,6 +205,76 @@ doNumber:			                                	; function that gets the value of t
 
 
 plus:
+	sub dword [stackPointer], 4								; getting the last address
+	mov dword eax, [stackPointer]							; ebx = stackPointer
+	mov dword ebx, [eax]
+	mov edi, 0
+	cleanOp1:
+        cmp edi, 80
+        je moveRightOP1
+        mov byte [OP1 + edi], 0
+        inc edi
+        jmp cleanOp1
+
+	moveRightOP1:
+		dec edi													; edi--
+		cmp dword ebx, 0										; if *stackPointer == NULL
+		je cleanOp2
+		mov eax, 0
+		mov byte al, [ebx]
+		mov byte [OP1 + edi], al 							; buffer[edi] = al
+		cmp byte al, 16											; buffer[edi] = 16?
+		jb below16Op1
+		jmp endInsertingToBufferOp1
+		below16Op1:
+			dec edi
+			mov byte [OP1 + edi], 0							; if al < 16, add leading zero
+		endInsertingToBufferOp1:
+		mov eax, [ebx + 1]										; eax = head->next
+		mov [tmp], eax											; tmp = head->next
+		mov dword [savehead], ebx
+		push ebx												; free(head)
+		call free
+		add esp, 4
+		mov dword ebx, [savehead]								; head = NULL
+		mov dword [ebx], 0
+		mov ebx, [tmp] 											; ebx = head->next
+		jmp moveRightOP1
+
+	cleanOp2:
+		cmp edi, 80
+        je moveRightOP2
+        mov byte [OP2 + edi], 0
+        inc edi
+        jmp cleanOp2
+
+	moveRightOP2:
+		dec edi													; edi--
+		cmp dword ebx, 0										; if *stackPointer == NULL
+		je startAdding
+		mov eax, 0
+		mov byte al, [ebx]
+		mov byte [OP2 + edi], al 							; buffer[edi] = al
+		cmp byte al, 16											; buffer[edi] = 16?
+		jb below16Op2
+		jmp endInsertingToBufferOp2
+		below16Op2:
+			dec edi
+			mov byte [OP2 + edi], 0							; if al < 16, add leading zero
+		endInsertingToBufferOp2:
+		mov eax, [ebx + 1]										; eax = head->next
+		mov [tmp], eax											; tmp = head->next
+		mov dword [savehead], ebx
+		push ebx												; free(head)
+		call free
+		add esp, 4
+		mov dword ebx, [savehead]								; head = NULL
+		mov dword [ebx], 0
+		mov ebx, [tmp] 											; ebx = head->next
+		jmp moveRightOP2
+	
+	
+
 	ret
 
 
