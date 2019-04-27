@@ -256,21 +256,14 @@ plus:
 		cmp dword ebx, 0										; if *stackPointer == NULL
 		je beforeAdding
 		mov eax, 0
-		a:
-
 		mov byte al, [ebx]
-		b:
 		mov byte [OP2 + edi], al 							; buffer[edi] = al
-		c:
 		mov eax, [ebx + 1]										; eax = head->next
-		d:
 		mov [tmp], eax											; tmp = head->next
 		mov dword [savehead], ebx
-		e:
 		push ebx												; free(head)
 		call free
 		add esp, 4
-		f:
 		mov dword ebx, [savehead]								; head = NULL
 		mov dword [ebx], 0
 		mov dword [ebx + 1], 0
@@ -394,7 +387,40 @@ popAndPrint:
 		ret
 
 duplicate:
+	sub dword [stackPointer], 4								; getting the last address
+	mov dword eax, [stackPointer]							; ebx = stackPointer
+	mov dword ebx, [eax]
+	add dword [stackPointer], 4
+	mov dword [isFirst], 1
+	moveRightDuplicate:													
+		mov dword [numValue], 0
+		cmp dword ebx, 0										; if *stackPointer == NULL
+		je endMovRightDuplicate
+		mov eax, 0
+		mov byte al, [ebx]
+		a:
+		mov byte [numValue], al 								; numValue = al
+		mov dword [savehead], ebx
+		cmp dword [isFirst], 1                     				; is first?
+		jne callPushNumberDuplicate                    			; if not, just push number
+		call pushFirstNode                          			; if first, push first node
+		dec dword [isFirst]                         			; not first anymore
+		jmp endPushNumberDuplicate                           	; end push current node
+		
+		callPushNumberDuplicate:
+			call pushNumber
+		
+		endPushNumberDuplicate:
+			mov dword ebx, [savehead]
+			mov eax, [ebx + 1]										; eax = head->next
+			mov [tmp], eax											; tmp = head->next								
+			mov ebx, [tmp] 											; ebx = head->next
+			jmp moveRightDuplicate
 
+		endMovRightDuplicate:
+			mov dword [isFirst], 1
+		
+		add dword [stackPointer], 4
 	ret
 
 pPower:
