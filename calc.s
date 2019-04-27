@@ -2,10 +2,12 @@
 ; second commit
 section	.rodata			; we define (global) read-only variables in .rodata section
 	elementLength: DD 5
-	format_string: db "%s", 10, 0
+	format_string: db "%s", 0
     format_int: db "%d", 10, 0
     format_char: db "%c", 10, 0
-    format_hexa: db "%x", 0
+    format_hexa: db "%0x", 0
+	calc_msg: dw "calc:"
+	space_msg: dw 10
 	const16: DD 16
 	const256: DD 256
 
@@ -57,6 +59,12 @@ myCalc:
 	pushad		
 
 	doWhile:
+
+		push calc_msg
+		push format_string
+		call printf
+		add esp, 8
+
 		mov edi, 0
 		CLEAN:
             cmp edi, 80
@@ -204,30 +212,53 @@ popAndPrint:
 	sub dword [stackPointer], 4								; getting the last address
 	mov dword eax, [stackPointer]							; ebx = stackPointer
 	mov dword ebx, [eax]
-	popLoop:
+	mov edi, 0
+	cleanBuffer:
+        cmp edi, 80
+        je moveRight
+        mov byte [buffer + edi], 0
+        inc edi
+        jmp cleanBuffer
+	moveRight:
+		dec edi													; edi--
 		cmp dword ebx, 0										; if *stackPointer == NULL
-		je endPopLoop
-		a:
+		je endMovRight
 		mov eax, 0
 		mov byte al, [ebx]
-		b:
+		mov byte [buffer + edi], al 							; buffer[edi] = al
+		cmp byte al, 16											; buffer[edi] = 16?
+		jb below16
+		jmp endInsertingToBuffer
+		below16:
+			dec edi
+			mov byte [buffer + edi], 0							; if al < 16, add leading zero
+		endInsertingToBuffer:
+		mov eax, [ebx + 1]										; eax = head->next
+		mov [tmp], eax											; tmp = head->next
+		mov dword [savehead], ebx
+		push ebx												; free(head)
+		call free
+		add esp, 4
+		mov dword ebx, [savehead]								; head = NULL
+		mov dword [ebx], 0
+		mov ebx, [tmp] 											; ebx = head->next
+		jmp moveRight
+	endMovRight:
+		inc edi
+		cmp edi, 80
+		je endPrintNumber
+		mov byte al, [buffer + edi]
 		push eax
 		push format_hexa
 		call printf
 		add esp, 8
-		c:
-		mov eax, [ebx + 1]
-		d:
-		mov [tmp], eax
-		e:
-		push ebx
-		call free
-		add esp, 4
-		f:
-		mov ebx, [tmp]
-		jmp popLoop
-	endPopLoop:
-	ret
+		jmp endMovRight
+	endPrintNumber:
+		push space_msg
+		push format_string
+		call printf
+		add esp, 8
+		ret
 
 duplicate:
 
@@ -248,12 +279,8 @@ pushFirstNode:
 		call malloc
 		mov dword [head], eax					; head = malloc(elementLength)
 		add esp, 4
-		
 		mov edx, dword [stackPointer]			; edx = stackPointer
 		mov [edx], eax							; stack[stackPointer] = head;
-		
-		
-		mmm:
 		mov dword ebx, [head]					; ebx = head
         mov dword edx, [numValue]               ; edx = data
 		mov byte [ebx], dl 						; head->data = edx
@@ -273,4 +300,4 @@ pushNumber:
 		mov byte [ebx], dl						; tmp.data = edx
 		mov dword ecx, [tmp]					; head = temp
 		mov dword [head], ecx					; head = temp
-		ret
+	ret
