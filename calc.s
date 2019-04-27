@@ -2,10 +2,11 @@
 ; second commit
 section	.rodata			; we define (global) read-only variables in .rodata section
 	elementLength: DD 5
-	format_string: db "%s", 10, 0
+	format_string: db "%s", 0
     format_int: db "%d", 10, 0
     format_char: db "%c", 10, 0
-    format_hexa: db "%x", 0
+    format_hexa: db "%x", 10, 0
+	calc_msg: dw "calc:"
 	const16: DD 16
 	const256: DD 256
 
@@ -55,6 +56,12 @@ myCalc:
 	pushad		
 
 	doWhile:
+
+		push calc_msg
+		push format_string
+		call printf
+		add esp, 8
+
 		mov edi, 0
 		CLEAN:
             cmp edi, 80
