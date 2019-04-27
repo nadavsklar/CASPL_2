@@ -5,7 +5,8 @@ section	.rodata			; we define (global) read-only variables in .rodata section
 	format_string: db "%s", 0
     format_int: db "%d", 10, 0
     format_char: db "%c", 10, 0
-    format_hexa: db "%0x", 0
+    format_hexa: db "%0X", 0
+	binaryBits: DD 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4
 	calc_msg: dw "calc:"
 	space_msg: dw 10
 	const16: DD 16
@@ -24,7 +25,8 @@ section .data           ; we define (global) initialized variables in .data sect
 	carry: db 0
 	carry1: db 0
 	carry2: db 0
-
+	totalBits: DD 0
+	
 
 section .bss			; we define (global) uninitialized variables in .bss section
 	buffer: resb 80 					;; store input buffer
@@ -398,7 +400,6 @@ duplicate:
 		je endMovRightDuplicate
 		mov eax, 0
 		mov byte al, [ebx]
-		a:
 		mov byte [numValue], al 								; numValue = al
 		mov dword [savehead], ebx
 		cmp dword [isFirst], 1                     				; is first?
@@ -430,7 +431,77 @@ nPower:
 	ret
 
 nBits:
+	sub dword [stackPointer], 4								; getting the last address
+	mov dword eax, [stackPointer]							; ebx = stackPointer
+	mov dword ebx, [eax]
+	mov dword [totalBits], 0
+	nBitsLoop:
+		cmp dword ebx, 0										; if *stackPointer == NULL
+		je endnBitsLoop
+		mov eax, 0
+		mov byte al, [ebx]
+		mov ecx, [const16]
+		mov edx, 0
+		div ecx
+		call countNumberOfOnesX
+		call countNumberOfOnesY
+		mov eax, [ebx + 1]										; eax = head->next
+		mov [tmp], eax											; tmp = head->next
+		mov dword [savehead], ebx
+		push ebx												; free(head)
+		call free
+		add esp, 4
+		mov dword ebx, [savehead]								; head = NULL
+		mov dword [ebx], 0
+		mov dword [ebx + 1], 0
+		mov ebx, [tmp] 											; ebx = head->next
+		jmp nBitsLoop
+	endnBitsLoop:
+		call pushNumberNbits
 	ret
+
+pushNumberNbits:
+	mov dword [isFirst], 1
+	mov dword eax, [stackPointer]							; ebx = stackPointer
+	mov dword ebx, [eax]
+	mov eax, [totalBits]
+	loopNbitsPush:
+	cmp eax, 0
+	je endNbitsPush
+	mov edx, 0
+    mov ecx, [const256]
+    div ecx
+	mov dword [numValue], edx								; numValue = edx
+	cmp dword [isFirst], 1                     				; is first?
+	jne callPushNumberNbitsPush                   			; if not, just push number
+	call pushFirstNode                          			; if first, push first node
+	dec dword [isFirst]                         			; not first anymore
+	jmp endPushNumberNbitsPush                           	; end push current node
+		
+	callPushNumberNbitsPush:
+			call pushNumber
+		
+	endPushNumberNbitsPush:
+		mov eax, [ebx + 1]										; eax = head->next
+		mov [tmp], eax											; tmp = head->next								
+		mov ebx, [tmp] 											; ebx = head->next
+		jmp loopNbitsPush
+
+	endNbitsPush:
+		mov dword [isFirst], 1
+		add dword [stackPointer], 4
+	ret
+
+countNumberOfOnesX:
+	mov ecx, [binaryBits + edx*4]
+	add [totalBits], ecx
+	ret
+
+countNumberOfOnesY:
+	mov ecx, [binaryBits + eax*4]
+	add [totalBits], ecx
+	ret
+
 
 pushFirstNode:
     pushInit:
