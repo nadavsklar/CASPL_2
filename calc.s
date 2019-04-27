@@ -21,6 +21,9 @@ section .data           ; we define (global) initialized variables in .data sect
     counterToInsert: DD 0
     isFirst: DD 1
 	stackPointer: DD stack 					;;stack pointer
+	carry: db 0
+	carry1: db 0
+	carry2: db 0
 
 
 section .bss			; we define (global) uninitialized variables in .bss section
@@ -219,17 +222,10 @@ plus:
 	moveRightOP1:
 		dec edi													; edi--
 		cmp dword ebx, 0										; if *stackPointer == NULL
-		je cleanOp2
+		je startOP2
 		mov eax, 0
 		mov byte al, [ebx]
 		mov byte [OP1 + edi], al 							; buffer[edi] = al
-		cmp byte al, 16											; buffer[edi] = 16?
-		jb below16Op1
-		jmp endInsertingToBufferOp1
-		below16Op1:
-			dec edi
-			mov byte [OP1 + edi], 0							; if al < 16, add leading zero
-		endInsertingToBufferOp1:
 		mov eax, [ebx + 1]										; eax = head->next
 		mov [tmp], eax											; tmp = head->next
 		mov dword [savehead], ebx
@@ -238,8 +234,15 @@ plus:
 		add esp, 4
 		mov dword ebx, [savehead]								; head = NULL
 		mov dword [ebx], 0
+		mov dword [ebx + 1], 0
 		mov ebx, [tmp] 											; ebx = head->next
 		jmp moveRightOP1
+
+	startOP2:
+		sub dword [stackPointer], 4								; getting the last address
+		mov dword eax, [stackPointer]							; ebx = stackPointer
+		mov dword ebx, [eax]
+		mov edi, 0
 
 	cleanOp2:
 		cmp edi, 80
@@ -251,30 +254,87 @@ plus:
 	moveRightOP2:
 		dec edi													; edi--
 		cmp dword ebx, 0										; if *stackPointer == NULL
-		je startAdding
+		je beforeAdding
 		mov eax, 0
+		a:
+
 		mov byte al, [ebx]
+		b:
 		mov byte [OP2 + edi], al 							; buffer[edi] = al
-		cmp byte al, 16											; buffer[edi] = 16?
-		jb below16Op2
-		jmp endInsertingToBufferOp2
-		below16Op2:
-			dec edi
-			mov byte [OP2 + edi], 0							; if al < 16, add leading zero
-		endInsertingToBufferOp2:
+		c:
 		mov eax, [ebx + 1]										; eax = head->next
+		d:
 		mov [tmp], eax											; tmp = head->next
 		mov dword [savehead], ebx
+		e:
 		push ebx												; free(head)
 		call free
 		add esp, 4
+		f:
 		mov dword ebx, [savehead]								; head = NULL
 		mov dword [ebx], 0
+		mov dword [ebx + 1], 0
 		mov ebx, [tmp] 											; ebx = head->next
 		jmp moveRightOP2
 	
-	
+		beforeAdding:
+		mov dword [isFirst], 1
+		mov edi, 79
+			startAdding:
+				mov byte [carry1], 0 
+				mov byte [carry2], 0
+				cmp byte [OP1 + edi], 0
+				jne mustAdd
+				cmp byte [OP2 + edi], 0
+				jne mustAdd
+				doneAdding:
+					cmp dword [carry], 0
+					je endPlus
+					mov dword ecx, [carry]
+					mov dword [numValue], ecx
+					call pushNumber
+					jmp endPlus
+				mustAdd:
+					mov ecx, 0
+					mov byte cl, [OP1 + edi]
+					add byte cl, [OP2 + edi]
+					jnc NotFirstCarry
+					firstCarry:
+						mov byte [numValue], cl
+						mov byte [carry1], 1
+					NotFirstCarry:
+						add byte cl, [carry]
+						jnc NotSecondCarry
+						secondCarry:
+							mov byte [carry2], 1
+						NotSecondCarry:
+							mov byte [numValue], cl
+							mov dword edx, 0
+							mov byte dl, [carry1]
+							add byte dl, [carry2]
+							mov byte [carry], dl
+					
+					endMoveCarry:
+					cmp dword [isFirst], 1                      ; is first?
+					jne callPushNumberPlus                        ; if not, just push number
+					call pushFirstNode                          ; if first, push first node
+					dec dword [isFirst]                         ; not first anymore
+					jmp endPushNumberPlus                           ; end push current node
 
+
+					callPushNumberPlus:                             ; pushes not first node
+						call pushNumber
+
+					endPushNumberPlus:
+						dec edi
+						jmp startAdding
+		endPlus:
+		mov byte [carry], 0
+		mov byte [carry1], 0
+		mov byte [carry2], 0
+		mov dword [isFirst], 1
+		mov dword [head + 1], 0                             ; end of list = null
+		add dword [stackPointer], 4                            ; stackPointer++
 	ret
 
 
@@ -300,6 +360,8 @@ popAndPrint:
 		jb below16
 		jmp endInsertingToBuffer
 		below16:
+			cmp dword [ebx + 1], 0								; last digit?
+			je endInsertingToBuffer
 			dec edi
 			mov byte [buffer + edi], 0							; if al < 16, add leading zero
 		endInsertingToBuffer:
@@ -311,6 +373,7 @@ popAndPrint:
 		add esp, 4
 		mov dword ebx, [savehead]								; head = NULL
 		mov dword [ebx], 0
+		mov dword [ebx + 1], 0
 		mov ebx, [tmp] 											; ebx = head->next
 		jmp moveRight
 	endMovRight:
