@@ -13,6 +13,8 @@ section .data           ; we define (global) initialized variables in .data sect
 	bufferLength: DD 80
 	numOfActions: DD 88
 	numValue: DD 0
+	OP1: DD 0
+	OP2: DD 0
 	moduluValue: DD 0
 	powerCounterBy16: DD 0
 	powerCounterBy256: DD 0
@@ -195,7 +197,19 @@ doNumber:			                                	; function that gets the value of t
 
 
 plus:
+	call popAndPrint
+	mov dword [OP1], eax
+	call popAndPrint
+	mov dword [OP2], eax
+	mov dword ecx, [OP1] 
+	add dword ecx, [OP2]
+	push ecx
+	push format_hexa
+	call printf
+	add esp, 8
+	call pushFirstNode
 	ret
+
 
 popAndPrint:
 	sub dword [stackPointer], 4								; getting the last address
@@ -227,6 +241,7 @@ popAndPrint:
 	ret
 
 duplicate:
+
 	ret
 
 pPower:
