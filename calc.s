@@ -197,17 +197,6 @@ doNumber:			                                	; function that gets the value of t
 
 
 plus:
-	call popAndPrint
-	mov dword [OP1], eax
-	call popAndPrint
-	mov dword [OP2], eax
-	mov dword ecx, [OP1] 
-	add dword ecx, [OP2]
-	push ecx
-	push format_hexa
-	call printf
-	add esp, 8
-	call pushFirstNode
 	ret
 
 
