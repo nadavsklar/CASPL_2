@@ -31,6 +31,8 @@ section .data           ; we define (global) initialized variables in .data sect
 	powerValue: db 0
 	printFlag: DD 1
 	tempEDI: DD 0
+	OP1Size: DD 0
+	OP2Size: DD 0
 	
 
 section .bss			; we define (global) uninitialized variables in .bss section
@@ -226,6 +228,8 @@ plus:
 	sub dword [stackPointer], 4								; getting the last address
 	mov dword eax, [stackPointer]							; ebx = stackPointer
 	mov dword ebx, [eax]
+	mov dword [OP1Size], 79
+	mov dword [OP2Size], 79
 	mov edi, 0
 	cleanOp1:
         cmp edi, 80
@@ -251,6 +255,7 @@ plus:
 		mov dword [ebx], 0
 		mov dword [ebx + 1], 0
 		mov ebx, [tmp] 											; ebx = head->next
+		dec dword [OP1Size]
 		jmp moveRightOP1
 
 	startOP2:
@@ -283,6 +288,7 @@ plus:
 		mov dword [ebx], 0
 		mov dword [ebx + 1], 0
 		mov ebx, [tmp] 											; ebx = head->next
+		dec dword [OP2Size]
 		jmp moveRightOP2
 	
 		beforeAdding:
@@ -291,10 +297,10 @@ plus:
 			startAdding:
 				mov byte [carry1], 0 
 				mov byte [carry2], 0
-				cmp byte [OP1 + edi], 0
-				jne mustAdd
-				cmp byte [OP2 + edi], 0
-				jne mustAdd
+				cmp dword edi, [OP1Size]
+				ja mustAdd
+				cmp dword edi, [OP2Size]
+				ja mustAdd
 				doneAdding:
 					cmp dword [carry], 0
 					je endPlus
