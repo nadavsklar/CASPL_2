@@ -11,10 +11,13 @@ section	.rodata			; we define (global) read-only variables in .rodata section
 	space_msg: dw 10
 	const16: DD 16
 	const256: DD 256
+	error_power_msg: dw "wrong Y value"
+	error_push_msg: dw "Error: Operand Stack Overflow"
+	error_pop_msg: dw "Error: Insufficient Number of Arguments on Stack"
 
 section .data           ; we define (global) initialized variables in .data section
 	bufferLength: DD 80
-	numOfActions: DD 88
+	numOfActions: DD 0
 	numValue: DD 0
 	moduluValue: DD 0
 	powerCounterBy16: DD 0
@@ -24,15 +27,18 @@ section .data           ; we define (global) initialized variables in .data sect
 	stackPointer: DD stack 					;;stack pointer
 	stackPointerTmp1: DD stack
 	stackPointerTmp2: DD stack
-	carry: db 0
+	carry: DD 0
 	carry1: db 0
 	carry2: db 0
 	totalBits: DD 0
 	powerValue: db 0
 	printFlag: DD 1
 	tempEDI: DD 0
+	tmpEAX: DD 0
 	OP1Size: DD 0
 	OP2Size: DD 0
+	exitFlag: DD 0
+	stackSize: DD 0
 	
 
 section .bss			; we define (global) uninitialized variables in .bss section
@@ -62,7 +68,7 @@ align 16
 
 main:
     call myCalc        ; int main( int argc, char *argv[], char *envp[] )
-    mov     ebx,0
+	mov     ebx,0
     mov     eax,1
     int     0x80
     nop
@@ -113,47 +119,83 @@ myCalc:
 			je callBits
 
 			cmp byte [buffer], 'q'
-			je callExit
+			je changeFlag
 
 			callNumber:
 				call doNumber
+				inc dword [numOfActions]
 				jmp doWhile
 				
 			callPlus:
 				call plus
+				inc dword [numOfActions]				
 				jmp doWhile
 
 			callPopAndPrint:
 				call popAndPrint
+				inc dword [numOfActions]
 				jmp doWhile
 
 			callDuplicate:
 				call duplicate
+				inc dword [numOfActions]
 				jmp doWhile
 
 			callPPower:
 				call pPower
+				inc dword [numOfActions]
 				jmp doWhile
 			
 			callNPower:
 				call nPower
+				inc dword [numOfActions]
 				jmp doWhile
 
 			callBits:
 				call nBits
+				inc dword [numOfActions]
 				jmp doWhile
 
-			callExit:
-				jmp exit
-
+			changeFlag:
+				dec dword [printFlag]
+				exitLoop:
+					cmp dword [stackSize], 0
+					je endExitLoop
+					call popAndPrint
+					dec dword [stackSize]
+					jmp exitLoop
+				
+				endExitLoop:
+					mov dword eax, [numOfActions]
+					push eax
+					push format_hexa
+					call printf
+					add esp, 8
+					push space_msg
+					push format_string
+					call printf
+					add esp, 8
+					jmp exitWhile
 		
-	exit:
+	exitWhile:
 		popad			
 		mov esp, ebp	
 		pop ebp
 		ret
 
 doNumber:			                                	; function that gets the value of the number the user entered and push it
+	cmp dword [stackSize], 5
+	jb notErrorPush
+	push error_push_msg
+	push format_string
+	call printf
+	add esp, 8
+	push space_msg
+	push format_string
+	call printf
+	add esp, 8
+	jmp finallyEndPush
+	notErrorPush:
 	mov edi, 0
 	startRight: 		                                ; starting moving from str[0] to str[size - 1]
 		cmp byte [buffer + edi], 0
@@ -209,10 +251,10 @@ doNumber:			                                	; function that gets the value of t
 					dec edi
 					jmp startLeftLoop
 	endGetValue:
-        cmp dword [numValue], 0                             ; is there are more digits we havent entered?
-        je endDoNumber
 		cmp dword [isFirst], 1
-		je insertOneDigitOnly  
+		je insertOneDigitOnly 
+        cmp dword [numValue], 0                             ; is there are more digits we havent entered?
+        je endDoNumber 
         call pushNumber                                     ; yes - push them
 		jmp endDoNumber
 		insertOneDigitOnly:
@@ -221,7 +263,8 @@ doNumber:			                                	; function that gets the value of t
 		mov dword [head + 1], 0                             ; end of list = null
 		add dword [stackPointer], 4                            ; stackPointer++
 		mov dword [isFirst], 1
-	    ret
+		finallyEndPush:
+	    	ret
 
 
 plus:
@@ -294,6 +337,7 @@ plus:
 		beforeAdding:
 		mov dword [isFirst], 1
 		mov edi, 79
+		mov byte [carry], 0
 			startAdding:
 				mov byte [carry1], 0 
 				mov byte [carry2], 0
@@ -302,10 +346,11 @@ plus:
 				cmp dword edi, [OP2Size]
 				ja mustAdd
 				doneAdding:
-					cmp dword [carry], 0
+					cmp byte [carry], 0
 					je endPlus
-					mov dword ecx, [carry]
-					mov dword [numValue], ecx
+					mov ecx, 0
+					mov byte cl, [carry]
+					mov byte [numValue], cl
 					call pushNumber
 					jmp endPlus
 				mustAdd:
@@ -353,6 +398,18 @@ plus:
 
 
 popAndPrint:
+	cmp dword [stackSize], 0
+	ja notPopError
+	push error_pop_msg
+	push format_string
+	call printf
+	add esp, 8
+	push space_msg
+	push format_string
+	call printf
+	add esp, 8
+	jmp dontPrintAtAll
+	notPopError:
 	sub dword [stackPointer], 4								; getting the last address
 	mov dword eax, [stackPointer]							; ebx = stackPointer
 	mov dword ebx, [eax]
@@ -409,6 +466,7 @@ popAndPrint:
 		push format_string
 		call printf
 		add esp, 8
+		dec dword [stackSize]
 	dontPrintAtAll:
 		ret
 
@@ -458,10 +516,23 @@ pPower:
 
 	calcPower:
 		cmp dword ebx, 0									 	; if *stackPointer == NULL
-		je preparePopCoefficient
+		je beforePreparePopCoefficient
 		mov eax, 0
 		mov byte al, [ebx]
 		mov byte [powerValue],al
+	
+	beforePreparePopCoefficient:
+		cmp byte [powerValue], 200
+		jna preparePopCoefficient
+		push error_power_msg
+		push format_string
+		call printf
+		add esp, 8
+		push space_msg
+		push format_string
+		call printf
+		add esp, 8
+		jmp endpPower
 
 	preparePopCoefficient:
 		sub dword [stackPointer], 4								; getting the last address
@@ -702,24 +773,31 @@ pushNumberNbits:
 	mov edx, 0
     mov ecx, [const256]
     div ecx
+	mov dword [tmpEAX], eax
 	mov dword [numValue], edx								; numValue = edx
 	cmp dword [isFirst], 1                     				; is first?
 	jne callPushNumberNbitsPush                   			; if not, just push number
 	call pushFirstNode                          			; if first, push first node
+	mov eax, [tmpEAX]
 	dec dword [isFirst]                         			; not first anymore
 	jmp endPushNumberNbitsPush                           	; end push current node
 		
 	callPushNumberNbitsPush:
+			mov dword [tmpEAX], eax
 			call pushNumber
+			mov eax, dword [tmpEAX]
 		
 	endPushNumberNbitsPush:
+		mov dword [tmpEAX], eax
 		mov eax, [ebx + 1]										; eax = head->next
 		mov [tmp], eax											; tmp = head->next								
 		mov ebx, [tmp] 											; ebx = head->next
+		mov eax, dword [tmpEAX]
 		jmp loopNbitsPush
 
 	endNbitsPush:
 		mov dword [isFirst], 1
+		mov dword [head + 1], 0
 		add dword [stackPointer], 4
 	ret
 
@@ -745,6 +823,7 @@ pushFirstNode:
 		mov dword ebx, [head]					; ebx = head
         mov dword edx, [numValue]               ; edx = data
 		mov byte [ebx], dl 						; head->data = edx
+		inc dword [stackSize]
     ret
 
 pushNumber:
