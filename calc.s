@@ -471,6 +471,19 @@ popAndPrint:
 		ret
 
 duplicate:
+	cmp dword [stackSize], 0
+	ja notDuplicateError
+	push error_pop_msg
+	push format_string
+	call printf
+	add esp, 8
+	push space_msg
+	push format_string
+	call printf
+	add esp, 8
+	jmp dontDuplicateAtAll
+
+	notDuplicateError:
 	sub dword [stackPointer], 4								; getting the last address
 	mov dword eax, [stackPointer]							; ebx = stackPointer
 	mov dword ebx, [eax]
@@ -504,6 +517,7 @@ duplicate:
 			mov dword [isFirst], 1
 			mov dword [head + 1], 0                             ; end of list = null
 			add dword [stackPointer], 4
+	dontDuplicateAtAll:
 	ret
 
 pPower:
@@ -522,8 +536,11 @@ pPower:
 		mov byte [powerValue],al
 	
 	beforePreparePopCoefficient:
+		cmp dword [ebx + 1], 0
+		jne errorforsure
 		cmp byte [powerValue], 200
 		jna preparePopCoefficient
+	errorforsure:
 		push error_power_msg
 		push format_string
 		call printf
@@ -623,6 +640,21 @@ nPower:
 		mov byte al, [ebx]
 		mov byte [powerValue],al
 
+	cmp dword [ebx + 1], 0
+		jne errorforsureN
+		cmp byte [powerValue], 200
+		jna prapareNPower
+	errorforsureN:
+		push error_power_msg
+		push format_string
+		call printf
+		add esp, 8
+		push space_msg
+		push format_string
+		call printf
+		add esp, 8
+		jmp endFinallyNPower
+
 	prapareNPower:
 		sub dword [stackPointer], 4								; getting the last address
 		mov dword eax, [stackPointer]							; ebx = stackPointer
@@ -710,7 +742,8 @@ nPower:
 		jmp mulMudulo8
 	endNPower:
 		call divHeadOfStack
-	ret
+	endFinallyNPower:
+		ret
 
 
 divHeadOfStack:
@@ -733,6 +766,20 @@ divHeadOfStack:
 	ret
 
 nBits:
+	cmp dword [stackSize], 0
+	ja notNBitsError
+	push error_pop_msg
+	push format_string
+	call printf
+	add esp, 8
+	push space_msg
+	push format_string
+	call printf
+	add esp, 8
+	jmp dontNbitsAtAll
+
+	notNBitsError:
+	dec dword [stackSize]
 	sub dword [stackPointer], 4								; getting the last address
 	mov dword eax, [stackPointer]							; ebx = stackPointer
 	mov dword ebx, [eax]
@@ -760,6 +807,7 @@ nBits:
 		jmp nBitsLoop
 	endnBitsLoop:
 		call pushNumberNbits
+	dontNbitsAtAll:
 	ret
 
 pushNumberNbits:
