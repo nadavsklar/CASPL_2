@@ -443,6 +443,7 @@ duplicate:
 	ret
 
 pPower:
+	mov byte [powerValue], 0
 	startPower:
 		sub dword [stackPointer], 8								; getting the last address
 		mov dword eax, [stackPointer]							; ebx = stackPointer
@@ -529,11 +530,129 @@ pPower:
 		dec byte [powerValue]
 		jmp calcResultOfPower
 
-	 endpPower:
-
+	endpPower:
 	ret
 
 nPower:
+	startnPower:
+		sub dword [stackPointer], 8								; getting the last address
+		mov dword eax, [stackPointer]							; ebx = stackPointer
+		mov dword ebx, [eax]
+		add dword [stackPointer], 8
+	calcnPower:
+		cmp dword ebx, 0									 	; if *stackPointer == NULL
+		je prapareNPower
+		mov eax, 0
+		mov byte al, [ebx]
+		mov byte [powerValue],al
+
+	prapareNPower:
+		sub dword [stackPointer], 4								; getting the last address
+		mov dword eax, [stackPointer]							; ebx = stackPointer
+		mov dword ebx, [eax]
+		mov edi, 0
+
+	cleanNCoefficient:
+        cmp edi, 10000
+        je popNCoefficient
+        mov byte [coefficient + edi], 0
+        inc edi
+        jmp cleanNCoefficient
+
+	popNCoefficient:
+		dec edi													; edi--
+		cmp dword ebx, 0										; if *stackPointer == NULL
+		je popNPower
+		mov eax, 0
+		mov byte al, [ebx]
+		mov byte [coefficient + edi], al 							; buffer[edi] = al
+		mov eax, [ebx + 1]										; eax = head->next
+		mov [tmp], eax											; tmp = head->next
+		mov dword [savehead], ebx
+		push ebx												; free(head)
+		call free
+		add esp, 4
+		mov dword ebx, [savehead]								; head = NULL
+		mov dword [ebx], 0
+		mov dword [ebx + 1], 0
+		mov ebx, [tmp] 											; ebx = head->next
+		jmp popNCoefficient
+	
+	popNPower:
+		mov dword [tempEDI], edi
+		dec dword [printFlag]
+		call popAndPrint
+		inc dword [printFlag]
+		mov dword edi, [tempEDI]
+		inc edi
+	pushNCoefficient:
+		mov dword [isFirst], 1
+		moveRightNCoefficient:
+			cmp byte [coefficient + edi], 0										; if *stackPointer == NULL
+			je endMovRightNCoefficient
+			mov ecx, 0
+			mov byte cl, [coefficient + edi]													
+			mov byte [numValue], cl								; numValue = al
+			cmp dword [isFirst], 1                     				; is first?
+			jne callPushNumberNCoefficient                    			; if not, just push number
+			call pushFirstNode                          			; if first, push first node
+			dec dword [isFirst]                         			; not first anymore
+			jmp endPushNumberNCoefficient                           	; end push current node
+			
+			callPushNumberNCoefficient:
+				call pushNumber
+			
+			endPushNumberNCoefficient:
+				dec edi								; ebx = head->next
+				jmp moveRightNCoefficient
+
+			endMovRightNCoefficient:
+				mov dword [isFirst], 1
+				mov dword [head + 1], 0                             ; end of list = null
+				add dword [stackPointer], 4	
+
+	calcResultOfNPower:
+		cmp byte [powerValue], 8
+		jb lastMoveNPower
+		call divHeadOfStack
+		sub byte [powerValue], 8
+		jmp calcResultOfNPower
+
+	lastMoveNPower:
+		mov eax , 0
+		mov al, 8
+		sub byte al, [powerValue]
+		mov byte [powerValue], al
+
+	mulMudulo8:
+		cmp byte [powerValue], 0
+		je endNPower
+		call duplicate
+		call plus
+		dec byte [powerValue]
+		jmp mulMudulo8
+	endNPower:
+		call divHeadOfStack
+	ret
+
+
+divHeadOfStack:
+	sub dword [stackPointer], 4
+	mov dword eax, [stackPointer]							; ebx = stackPointer
+	mov dword ebx, [eax]
+	cmp ebx, 0
+	je endDiv
+	mov eax, [ebx + 1]										; eax = head->next
+	mov dword [stack], eax
+	mov dword [savehead], ebx
+	push ebx
+	call free
+	add esp, 4
+	mov dword ebx, [savehead]
+	mov dword [ebx], 0
+	mov dword [ebx + 1], 0
+	add dword [stackPointer], 4
+	endDiv:
 	ret
 
 nBits:
