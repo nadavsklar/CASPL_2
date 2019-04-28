@@ -22,20 +22,28 @@ section .data           ; we define (global) initialized variables in .data sect
     counterToInsert: DD 0
     isFirst: DD 1
 	stackPointer: DD stack 					;;stack pointer
+	stackPointerTmp1: DD stack
+	stackPointerTmp2: DD stack
 	carry: db 0
 	carry1: db 0
 	carry2: db 0
 	totalBits: DD 0
+	powerValue: db 0
+	printFlag: DD 1
+	tempEDI: DD 0
 	
 
 section .bss			; we define (global) uninitialized variables in .bss section
 	buffer: resb 80 					;; store input buffer
+	coefficient: resb 10000				;; store the coefficient buffer
 	OP1: resb 80						;; op1 of the plus action
 	OP2: resb 80						;; op2 of the plus action
 	head: resb 5         			;; This is a pointer for a linked list
 	tmp: resb 5 					;; This is a tmp pointer to the current link
 	savehead: resb 5
-	stack: resb 5 	;;stack address
+	stack: resb 5 					;;stack address
+	hugeBuffer: resb 100000
+
 
 section .text
 align 16
@@ -200,8 +208,13 @@ doNumber:			                                	; function that gets the value of t
 					jmp startLeftLoop
 	endGetValue:
         cmp dword [numValue], 0                             ; is there are more digits we havent entered?
-        je endDoNumber  
+        je endDoNumber
+		cmp dword [isFirst], 1
+		je insertOneDigitOnly  
         call pushNumber                                     ; yes - push them
+		jmp endDoNumber
+		insertOneDigitOnly:
+			call pushFirstNode
         endDoNumber:                                        ; else
 		mov dword [head + 1], 0                             ; end of list = null
 		add dword [stackPointer], 4                            ; stackPointer++
@@ -376,16 +389,21 @@ popAndPrint:
 		cmp edi, 80
 		je endPrintNumber
 		mov byte al, [buffer + edi]
+		cmp dword [printFlag], 0
+		je dontPrintAtAll
 		push eax
 		push format_hexa
 		call printf
 		add esp, 8
 		jmp endMovRight
 	endPrintNumber:
+		cmp dword [printFlag], 0
+		je dontPrintAtAll
 		push space_msg
 		push format_string
 		call printf
 		add esp, 8
+	dontPrintAtAll:
 		ret
 
 duplicate:
@@ -420,11 +438,99 @@ duplicate:
 
 		endMovRightDuplicate:
 			mov dword [isFirst], 1
-		
-		add dword [stackPointer], 4
+			mov dword [head + 1], 0                             ; end of list = null
+			add dword [stackPointer], 4
 	ret
 
 pPower:
+	startPower:
+		sub dword [stackPointer], 8								; getting the last address
+		mov dword eax, [stackPointer]							; ebx = stackPointer
+		mov dword ebx, [eax]
+		add dword [stackPointer], 8
+
+	calcPower:
+		cmp dword ebx, 0									 	; if *stackPointer == NULL
+		je preparePopCoefficient
+		mov eax, 0
+		mov byte al, [ebx]
+		mov byte [powerValue],al
+
+	preparePopCoefficient:
+		sub dword [stackPointer], 4								; getting the last address
+		mov dword eax, [stackPointer]							; ebx = stackPointer
+		mov dword ebx, [eax]
+		mov edi, 0
+
+	cleanCoefficient:
+        cmp edi, 10000
+        je popCoefficient
+        mov byte [coefficient + edi], 0
+        inc edi
+        jmp cleanCoefficient
+
+	popCoefficient:
+		dec edi													; edi--
+		cmp dword ebx, 0										; if *stackPointer == NULL
+		je popPower
+		mov eax, 0
+		mov byte al, [ebx]
+		mov byte [coefficient + edi], al 							; buffer[edi] = al
+		mov eax, [ebx + 1]										; eax = head->next
+		mov [tmp], eax											; tmp = head->next
+		mov dword [savehead], ebx
+		push ebx												; free(head)
+		call free
+		add esp, 4
+		mov dword ebx, [savehead]								; head = NULL
+		mov dword [ebx], 0
+		mov dword [ebx + 1], 0
+		mov ebx, [tmp] 											; ebx = head->next
+		jmp popCoefficient
+
+	popPower:
+		mov dword [tempEDI], edi
+		dec dword [printFlag]
+		call popAndPrint
+		inc dword [printFlag]
+		mov dword edi, [tempEDI]
+		inc edi
+	pushCoefficient:
+		mov dword [isFirst], 1
+		moveRightCoefficient:
+			cmp byte [coefficient + edi], 0										; if *stackPointer == NULL
+			je endMovRightCoefficient
+			mov ecx, 0
+			mov byte cl, [coefficient + edi]													
+			mov byte [numValue], cl								; numValue = al
+			cmp dword [isFirst], 1                     				; is first?
+			jne callPushNumberCoefficient                    			; if not, just push number
+			call pushFirstNode                          			; if first, push first node
+			dec dword [isFirst]                         			; not first anymore
+			jmp endPushNumberCoefficient                           	; end push current node
+			
+			callPushNumberCoefficient:
+				call pushNumber
+			
+			endPushNumberCoefficient:
+				dec edi								; ebx = head->next
+				jmp moveRightCoefficient
+
+			endMovRightCoefficient:
+				mov dword [isFirst], 1
+				mov dword [head + 1], 0                             ; end of list = null
+				add dword [stackPointer], 4	
+
+	calcResultOfPower:
+		cmp byte [powerValue], 0
+		je endpPower
+		call duplicate
+		call plus
+		dec byte [powerValue]
+		jmp calcResultOfPower
+
+	 endpPower:
+
 	ret
 
 nPower:
@@ -525,7 +631,7 @@ pushNumber:
 		mov dword ebx, [head]					; ebx = head
 		mov dword edx, [tmp]					; edx = temp
 		mov dword [ebx + 1], edx				; head->next = tmp
-        mov dword edx, [numValue]               ; edx = data
+		mov dword edx, [numValue]               ; edx = data
 		mov dword ebx, [tmp] 		
 		mov byte [ebx], dl						; tmp.data = edx
 		mov dword ecx, [tmp]					; head = temp
