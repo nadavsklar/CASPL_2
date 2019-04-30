@@ -123,7 +123,6 @@ myCalc:
 
 			callNumber:
 				call doNumber
-				inc dword [numOfActions]
 				jmp doWhile
 				
 			callPlus:
@@ -268,6 +267,20 @@ doNumber:			                                	; function that gets the value of t
 
 
 plus:
+	cmp dword [stackSize], 1
+	ja notPlusError
+	push error_pop_msg
+	push format_string
+	call printf
+	add esp, 8
+	push space_msg
+	push format_string
+	call printf
+	add esp, 8
+	jmp dontPlusAtAll
+	notPlusError:
+	dec dword [stackSize]
+	dec dword [stackSize]
 	sub dword [stackPointer], 4								; getting the last address
 	mov dword eax, [stackPointer]							; ebx = stackPointer
 	mov dword ebx, [eax]
@@ -394,6 +407,7 @@ plus:
 		mov dword [isFirst], 1
 		mov dword [head + 1], 0                             ; end of list = null
 		add dword [stackPointer], 4                            ; stackPointer++
+	dontPlusAtAll:
 	ret
 
 
@@ -472,7 +486,7 @@ popAndPrint:
 
 duplicate:
 	cmp dword [stackSize], 0
-	ja notDuplicateError
+	ja countinueChecking
 	push error_pop_msg
 	push format_string
 	call printf
@@ -483,7 +497,19 @@ duplicate:
 	add esp, 8
 	jmp dontDuplicateAtAll
 
-	notDuplicateError:
+	countinueChecking:
+		cmp dword [stackSize], 5
+		jb OkDuplicate
+		push error_push_msg
+		push format_string
+		call printf
+		add esp, 8
+		push space_msg
+		push format_string
+		call printf
+		add esp, 8
+		jmp dontDuplicateAtAll
+	OkDuplicate:
 	sub dword [stackPointer], 4								; getting the last address
 	mov dword eax, [stackPointer]							; ebx = stackPointer
 	mov dword ebx, [eax]
@@ -521,6 +547,19 @@ duplicate:
 	ret
 
 pPower:
+	cmp dword [stackSize], 1
+	ja notpPowerError
+	push error_pop_msg
+	push format_string
+	call printf
+	add esp, 8
+	push space_msg
+	push format_string
+	call printf
+	add esp, 8
+	jmp endpPowerR
+	notpPowerError:
+
 	mov byte [powerValue], 0
 	startPower:
 		sub dword [stackPointer], 8								; getting the last address
@@ -625,9 +664,13 @@ pPower:
 		jmp calcResultOfPower
 
 	endpPower:
+		dec dword [stackSize]
+		dec dword [stackSize]
+	endpPowerR:
 	ret
 
 nPower:
+	mov byte [powerValue], 0
 	startnPower:
 		sub dword [stackPointer], 8								; getting the last address
 		mov dword eax, [stackPointer]							; ebx = stackPointer
@@ -695,6 +738,7 @@ nPower:
 		mov dword edi, [tempEDI]
 		inc edi
 	pushNCoefficient:
+		inc edi
 		mov dword [isFirst], 1
 		moveRightNCoefficient:
 			cmp byte [coefficient + edi], 0										; if *stackPointer == NULL
@@ -742,6 +786,8 @@ nPower:
 		jmp mulMudulo8
 	endNPower:
 		call divHeadOfStack
+		dec dword [stackSize]
+		dec dword [stackSize]
 	endFinallyNPower:
 		ret
 
